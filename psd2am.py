@@ -27,8 +27,10 @@ def walk(group, out):
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument("psd"); ap.add_argument("out")
     ap.add_argument("--duration-ms", type=int, default=5000); ap.add_argument("--fps", type=int, default=30)
-    ap.add_argument("--folder", default="/storage/emulated/0/Download", help="phone folder the PNGs will be in")
+    ap.add_argument("--folder", default=None, help="phone folder the PNGs will be in (default: Download/<psd name>)")
     a = ap.parse_args()
+    base = "".join(c if (c.isascii() and c.isalnum()) or c in "-_" else "_" for c in os.path.splitext(os.path.basename(a.psd))[0]) or "psd"
+    a.folder = a.folder or f"/storage/emulated/0/Download/{base}"
     psd = PSDImage.open(a.psd); W, H, T = psd.width, psd.height, a.duration_ms
     layers = []; walk(psd, layers)
     x = [f"<?xml version='1.0' encoding='UTF-8' ?>",

@@ -61,7 +61,7 @@
       <li>Hidden layers are skipped</li>
       <li>Not yet: clipping masks, blend modes, layer effects, fonts (defaults to Roboto)</li>
     </ul>
-    <p>Extract the .zip so the PNGs sit directly in your <b>Download</b> folder, then import the XML in Alight Motion.</p>
+    <p>Save the .zip to <b>Download</b> and extract it there (keep the folder name the same as the zip). Then import the XML from that folder in Alight Motion.</p>
     <p><a style="color:var(--acc)" href="https://github.com/punyopan/psd-to-am-xml">Source on GitHub</a></p>
   </div>
 </main>
@@ -89,16 +89,18 @@ $('go').addEventListener('click', async () => {
   try {
     const buf = await file.arrayBuffer();
     const psd = agPsd.readPsd(buf, { skipCompositeImageData: true, skipThumbnail: true });
-    const title = file.name.replace(/\.psd$/i, '');
+    const title = file.name.replace(/\.psd$/i, '').replace(/[^A-Za-z0-9\-_]/g, '_') || 'psd';
     result = PSD2AM.convert(psd, {
       title,
+      folder: '/storage/emulated/0/Download/' + title,
       durationMs: Math.round(parseFloat($('dur').value || '5') * 1000),
       fps: parseInt($('fps').value || '30', 10)
     });
     result.title = title;
     const texts = result.count - result.pixel.length;
     $('summary').textContent = `${result.count} layers: ${texts} text, ${result.pixel.length} image (${psd.width}×${psd.height})`
-      + (result.skipped.length ? '\nNote: ' + result.skipped.join('; ') : '');
+      + (result.skipped.length ? '\nNote: ' + result.skipped.join('; ') : '')
+      + `\n\nExtract ${title}.zip in Download so the files end up in Download/${title}/`;
     $('summary').style.whiteSpace = 'pre-wrap';
     $('out').hidden = false;
     $('status').textContent = 'Done.';

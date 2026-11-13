@@ -7,7 +7,7 @@ Convert a Photoshop `.psd` into an Alight Motion project `.xml`.
 - **Text layers** → Alight Motion text layers (position, size, color, content; font defaults to Roboto)
 - Hidden layers skipped
 - Not handled yet: clipping masks, blend modes, layer effects
-- The XML points at PNGs in `/storage/emulated/0/Download/` with `file://` paths (confirmed working in Alight Motion 5.0.273 on Android). Extract the zip so the PNGs sit directly in Download, then import the XML. Use `--folder` in the Python script for a different folder.
+- The XML points at PNGs in `/storage/emulated/0/Download/<name>/` with `file://` paths (confirmed working in Alight Motion 5.0.273 on Android). Save `<name>.zip` to Download and extract it there into a folder with the same name, then import the XML. Use `--folder` in the Python script for a different folder.
 
 ## Use on your phone
 Open **https://punyopan.github.io/psd-to-am-xml/**, pick a .psd, download the XML (or the .zip with layer PNGs). Runs entirely in the browser.
