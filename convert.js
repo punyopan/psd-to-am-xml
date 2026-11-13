@@ -17,7 +17,6 @@
   function flatten(layers, out, skipped = []) {
     for (const l of layers || []) {
       if (l.hidden) { skipped.push(`${l.name}: hidden`); continue; }
-      if (l.empty) { skipped.push(`${l.name}: empty`); continue; }
       if (l.clipping) skipped.push(`${l.name}: clipping mask not supported, imported unclipped`);
       if (l.children) { flatten(l.children, out, skipped); continue; }
       const w = (l.right || 0) - (l.left || 0), h = (l.bottom || 0) - (l.top || 0);
