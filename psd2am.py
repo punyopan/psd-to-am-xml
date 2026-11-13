@@ -17,6 +17,17 @@ def text_props(layer):
     except Exception:
         return 24.0, "#ff000000"
 
+BLEND = {"NORMAL": None, "PASS_THROUGH": None, "MULTIPLY": "multiply"}  # confirmed Alight Motion names
+
+def layer_attrs(l):
+    a = ' clippingMask="true"' if getattr(l, "clipping", False) else ""
+    bm = getattr(l.blend_mode, "name", str(l.blend_mode))
+    if bm in BLEND:
+        if BLEND[bm]: a += f' blending="{BLEND[bm]}"'
+    else:
+        print(f"note {l.name}: blend mode {bm} not supported yet, set to normal")
+    return a
+
 def walk(group, out):
     for l in group:
         if l.is_group():
@@ -58,14 +69,13 @@ def main():
         name = html.escape(l.name)
         if l.kind == "type":
             size, col = text_props(l)
-            x.append(f'  <text id="{lid}" label="{name}" startTime="0" endTime="{T}" fillType="color" mediaFillMode="fill" '
+            x.append(f'  <text id="{lid}" label="{name}" startTime="0" endTime="{T}"{layer_attrs(l)} fillType="color" mediaFillMode="fill" '
                      f'size="{size:.6f}" font="googlefonts?name=Roboto&amp;weight=400" wrapWidth="{max(l.width,64)}" align="left">\n'
                      f'    {tr}\n    <fillColor value="{col}" />\n    <content>{html.escape(l.text)}</content>\n  </text>')
         else:
             safe = "".join(c if (c.isascii() and c.isalnum()) or c in "-_" else "_" for c in l.name)
             fn = f"{lid}_{safe}.png"; uri = f"file://{a.folder.rstrip('/')}/{fn}"
-            media.append(f'  <media uri="{uri}" filename="{fn}" title="{fn}" type="image/png" orientation="0" width="{lw}" height="{lh}" />')
-            x.append(f'  <shape id="{lid}" label="{name}" startTime="0" endTime="{T}" fillType="media" fillImage="{uri}" mediaFillMode="fill" s=".rect">\n'
+            x.append(f'  <shape id="{lid}" label="{name}" startTime="0" endTime="{T}"{layer_attrs(l)} fillType="media" fillImage="{uri}" mediaFillMode="fill" s=".rect">\n'
                      f'    {tr}\n    <property name="size" type="vec2" value="{lw/2:.6f},{lh/2:.6f}" />\n  </shape>')
             img.save(os.path.join(os.path.dirname(os.path.abspath(a.out)), fn))
     x[2:2] = media
