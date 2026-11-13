@@ -31,7 +31,7 @@
 <body>
 <main>
   <h1>PSD → Alight Motion XML</h1>
-  <p class="sub">Runs entirely on your device. Nothing is uploaded.</p>
+  <p class="sub">Runs entirely on your device. Nothing is uploaded. <span style="opacity:.6">v0.5 · crop</span></p>
 
   <div class="card">
     <label class="drop" for="file">
@@ -96,6 +96,8 @@ $('go').addEventListener('click', async () => {
     result = PSD2AM.convert(psd, {
       title,
       folder: '/storage/emulated/0/Download/' + title,
+      // unique per conversion, so PNGs left over from an older run (or cached by Alight Motion) are never reused
+      tag: Date.now().toString(36).slice(-5),
       durationMs: Math.round(parseFloat($('dur').value || '5') * 1000),
       fps: parseInt($('fps').value || '30', 10)
     });
