@@ -28,6 +28,7 @@ def main():
     ap = argparse.ArgumentParser(); ap.add_argument("psd"); ap.add_argument("out")
     ap.add_argument("--duration-ms", type=int, default=5000); ap.add_argument("--fps", type=int, default=30)
     ap.add_argument("--folder", default=None, help="phone folder the PNGs will be in (default: Download/<psd name>)")
+    ap.add_argument("--no-trim", dest="trim", action="store_false", help="keep transparent edges")
     a = ap.parse_args()
     base = "".join(c if (c.isascii() and c.isalnum()) or c in "-_" else "_" for c in os.path.splitext(os.path.basename(a.psd))[0]) or "psd"
     a.folder = a.folder or f"/storage/emulated/0/Download/{base}"
@@ -40,7 +41,18 @@ def main():
     lid = 1000; media = []
     for l in layers:  # PSD order is bottom->top, same as AM XML
         lid += 1
-        cx, cy = l.left + l.width / 2, l.top + l.height / 2
+        img, left, top, lw, lh = None, l.left, l.top, l.width, l.height
+        if l.kind != "type":
+            img = l.topil()  # raw pixels: no clipping, no opacity (opacity goes in the XML)
+            if img is not None and img.mode != "RGBA": img = img.convert("RGBA")
+            if img is None:
+                print(f"skip {l.name}: empty"); lid -= 1; continue
+            if a.trim:
+                bbox = img.getchannel("A").getbbox()
+                if bbox is None or img is None:
+                    print(f"skip {l.name}: empty"); lid -= 1; continue
+                img = img.crop(bbox); left += bbox[0]; top += bbox[1]; lw, lh = img.size
+        cx, cy = left + lw / 2, top + lh / 2
         op = f'\n      <opacity value="{l.opacity/255:.6f}" />' if l.opacity < 255 else ""
         tr = f'<transform>\n      <location value="{cx:.6f},{cy:.6f},0.000000" />{op}\n    </transform>'
         name = html.escape(l.name)
@@ -52,13 +64,13 @@ def main():
         else:
             safe = "".join(c if (c.isascii() and c.isalnum()) or c in "-_" else "_" for c in l.name)
             fn = f"{lid}_{safe}.png"; uri = f"file://{a.folder.rstrip('/')}/{fn}"
-            media.append(f'  <media uri="{uri}" filename="{fn}" title="{fn}" type="image/png" orientation="0" width="{l.width}" height="{l.height}" />')
+            media.append(f'  <media uri="{uri}" filename="{fn}" title="{fn}" type="image/png" orientation="0" width="{lw}" height="{lh}" />')
             x.append(f'  <shape id="{lid}" label="{name}" startTime="0" endTime="{T}" fillType="media" fillImage="{uri}" mediaFillMode="fill" s=".rect">\n'
-                     f'    {tr}\n    <property name="size" type="vec2" value="{l.width:.6f},{l.height:.6f}" />\n  </shape>')
-            l.composite().save(os.path.join(os.path.dirname(os.path.abspath(a.out)), fn))
+                     f'    {tr}\n    <property name="size" type="vec2" value="{lw:.6f},{lh:.6f}" />\n  </shape>')
+            img.save(os.path.join(os.path.dirname(os.path.abspath(a.out)), fn))
     x[2:2] = media
     x.append("</scene>")
     open(a.out, "w", encoding="utf-8").write("\n".join(x))
-    print(f"{len(layers)} layers -> {a.out}")
+    print(f"{lid - 1000} layers -> {a.out}")
 
 if __name__ == "__main__": main()
