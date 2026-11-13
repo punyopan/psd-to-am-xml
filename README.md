@@ -8,7 +8,10 @@ Convert a Photoshop `.psd` into an Alight Motion project `.xml`.
 - Not handled: blend modes, layer effects, masks, hidden layers
 - Real image layers: pending a sample Alight Motion XML containing an image layer
 
-## Usage
+## Use on your phone
+Open **https://punyopan.github.io/psd-to-am-xml/**, pick a .psd, download the XML (or the .zip with layer PNGs). Runs entirely in the browser.
+
+## Usage (command line)
 ```
 pip install psd-tools
 python psd2am.py design.psd out.xml [--duration-ms 5000] [--fps 30]

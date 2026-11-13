@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PSD → Alight Motion XML</title>
+<style>
+  :root { --bg:#111; --card:#1c1c1e; --fg:#f2f2f2; --mut:#9a9aa0; --acc:#7c5cff; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:16px/1.45 system-ui, -apple-system, sans-serif; background:var(--bg); color:var(--fg); }
+  main { max-width:520px; margin:0 auto; padding:20px 16px 48px; }
+  h1 { font-size:22px; margin:8px 0 4px; }
+  p.sub { color:var(--mut); margin:0 0 20px; font-size:14px; }
+  .card { background:var(--card); border-radius:16px; padding:16px; margin-bottom:14px; }
+  label.drop { display:block; border:2px dashed #3a3a3c; border-radius:14px; padding:28px 12px; text-align:center; cursor:pointer; }
+  label.drop b { display:block; font-size:17px; margin-bottom:4px; }
+  label.drop span { color:var(--mut); font-size:14px; }
+  input[type=file] { display:none; }
+  .row { display:flex; gap:10px; }
+  .row > div { flex:1; }
+  .row label { font-size:13px; color:var(--mut); display:block; margin-bottom:4px; }
+  .row input { width:100%; padding:12px; border-radius:10px; border:1px solid #3a3a3c; background:#000; color:var(--fg); font-size:16px; }
+  button { width:100%; padding:15px; border:0; border-radius:12px; font-size:17px; font-weight:600; background:var(--acc); color:#fff; margin-top:10px; }
+  button.sec { background:#2c2c2e; }
+  button:disabled { opacity:.4; }
+  #status { color:var(--mut); font-size:14px; min-height:20px; margin-top:10px; white-space:pre-wrap; }
+  ul { padding-left:18px; margin:6px 0 0; font-size:14px; color:var(--mut); }
+  .note { font-size:13px; color:var(--mut); }
+</style>
+</head>
+<body>
+<main>
+  <h1>PSD → Alight Motion XML</h1>
+  <p class="sub">Runs entirely on your device. Nothing is uploaded.</p>
+
+  <div class="card">
+    <label class="drop" for="file">
+      <b id="fname">Choose a .psd file</b>
+      <span>Tap to pick from your phone</span>
+    </label>
+    <input id="file" type="file" accept=".psd,image/vnd.adobe.photoshop,application/octet-stream">
+    <div class="row" style="margin-top:14px">
+      <div><label for="dur">Duration (sec)</label><input id="dur" type="number" inputmode="decimal" value="5" min="0.1" step="0.1"></div>
+      <div><label for="fps">FPS</label><input id="fps" type="number" inputmode="numeric" value="30" min="1"></div>
+    </div>
+    <button id="go" disabled>Convert</button>
+    <div id="status"></div>
+  </div>
+
+  <div class="card" id="out" hidden>
+    <b id="summary"></b>
+    <button id="dlXml">Download XML</button>
+    <button id="dlZip" class="sec">Download XML + layer PNGs (.zip)</button>
+  </div>
+
+  <div class="card note">
+    <b style="color:var(--fg)">What converts</b>
+    <ul>
+      <li>Text layers → editable Alight Motion text (position, size, color)</li>
+      <li>Image layers → magenta placeholder rectangles at the same position and size; each layer's image is in the .zip so you can import it and swap it in</li>
+      <li>Not yet: blend modes, layer effects, masks, fonts (defaults to Roboto)</li>
+    </ul>
+    <p>Import the XML in Alight Motion, then replace the placeholders with the PNGs.</p>
+    <p><a style="color:var(--acc)" href="https://github.com/punyopan/psd-to-am-xml">Source on GitHub</a></p>
+  </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/ag-psd@34.2.0/dist/bundle.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="convert.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+let file = null, result = null;
+
+$('file').addEventListener('change', e => {
+  file = e.target.files[0] || null;
+  $('fname').textContent = file ? file.name : 'Choose a .psd file';
+  $('go').disabled = !file;
+  $('out').hidden = true;
+  $('status').textContent = '';
+});
+
+$('go').addEventListener('click', async () => {
+  if (!file) return;
+  $('go').disabled = true;
+  $('status').textContent = 'Reading PSD…';
+  await new Promise(r => setTimeout(r, 30));
+  try {
+    const buf = await file.arrayBuffer();
+    const psd = agPsd.readPsd(buf, { skipCompositeImageData: true, skipThumbnail: true });
+    const title = file.name.replace(/\.psd$/i, '');
+    result = PSD2AM.convert(psd, {
+      title,
+      durationMs: Math.round(parseFloat($('dur').value || '5') * 1000),
+      fps: parseInt($('fps').value || '30', 10)
+    });
+    result.title = title;
+    const texts = result.count - result.pixel.length;
+    $('summary').textContent = `${result.count} layers: ${texts} text, ${result.pixel.length} image (${psd.width}×${psd.height})`;
+    $('out').hidden = false;
+    $('status').textContent = 'Done.';
+  } catch (err) {
+    console.error(err);
+    $('status').textContent = 'Could not read this PSD: ' + err.message;
+  }
+  $('go').disabled = false;
+});
+
+function save(blob, name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+
+$('dlXml').addEventListener('click', () => {
+  save(new Blob([result.xml], { type: 'application/xml' }), result.title + '.xml');
+});
+
+$('dlZip').addEventListener('click', async () => {
+  $('status').textContent = 'Building zip…';
+  const zip = new JSZip();
+  zip.file(result.title + '.xml', result.xml);
+  for (const p of result.pixel) {
+    const c = p.layer.canvas;
+    if (!c) continue;
+    const blob = await new Promise(r => c.toBlob(r, 'image/png'));
+    if (blob) zip.file('layers/' + p.file, blob);
+  }
+  save(await zip.generateAsync({ type: 'blob' }), result.title + '.zip');
+  $('status').textContent = 'Done.';
+});
+</script>
+</body>
+</html>
