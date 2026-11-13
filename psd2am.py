@@ -66,7 +66,7 @@ def main():
             fn = f"{lid}_{safe}.png"; uri = f"file://{a.folder.rstrip('/')}/{fn}"
             media.append(f'  <media uri="{uri}" filename="{fn}" title="{fn}" type="image/png" orientation="0" width="{lw}" height="{lh}" />')
             x.append(f'  <shape id="{lid}" label="{name}" startTime="0" endTime="{T}" fillType="media" fillImage="{uri}" mediaFillMode="fill" s=".rect">\n'
-                     f'    {tr}\n    <property name="size" type="vec2" value="{lw:.6f},{lh:.6f}" />\n  </shape>')
+                     f'    {tr}\n    <property name="size" type="vec2" value="{lw/2:.6f},{lh/2:.6f}" />\n  </shape>')
             img.save(os.path.join(os.path.dirname(os.path.abspath(a.out)), fn))
     x[2:2] = media
     x.append("</scene>")
