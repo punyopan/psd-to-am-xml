@@ -49,18 +49,19 @@
 
   <div class="card" id="out" hidden>
     <b id="summary"></b>
-    <button id="dlXml">Download XML</button>
-    <button id="dlZip" class="sec">Download XML + layer PNGs (.zip)</button>
+    <button id="dlZip">Download XML + layer PNGs (.zip)</button>
+    <button id="dlXml" class="sec">Download XML only</button>
   </div>
 
   <div class="card note">
     <b style="color:var(--fg)">What converts</b>
     <ul>
       <li>Text layers → editable Alight Motion text (position, size, color)</li>
-      <li>Image layers → magenta placeholder rectangles at the same position and size; each layer's image is in the .zip so you can import it and swap it in</li>
-      <li>Not yet: blend modes, layer effects, masks, fonts (defaults to Roboto)</li>
+      <li>Image layers → Alight Motion image layers at the same position, size and opacity</li>
+      <li>Hidden layers are skipped</li>
+      <li>Not yet: clipping masks, blend modes, layer effects, fonts (defaults to Roboto)</li>
     </ul>
-    <p>Import the XML in Alight Motion, then replace the placeholders with the PNGs.</p>
+    <p>Extract the .zip so the PNGs sit directly in your <b>Download</b> folder, then import the XML in Alight Motion.</p>
     <p><a style="color:var(--acc)" href="https://github.com/punyopan/psd-to-am-xml">Source on GitHub</a></p>
   </div>
 </main>
@@ -96,7 +97,9 @@ $('go').addEventListener('click', async () => {
     });
     result.title = title;
     const texts = result.count - result.pixel.length;
-    $('summary').textContent = `${result.count} layers: ${texts} text, ${result.pixel.length} image (${psd.width}×${psd.height})`;
+    $('summary').textContent = `${result.count} layers: ${texts} text, ${result.pixel.length} image (${psd.width}×${psd.height})`
+      + (result.skipped.length ? '\nNote: ' + result.skipped.join('; ') : '');
+    $('summary').style.whiteSpace = 'pre-wrap';
     $('out').hidden = false;
     $('status').textContent = 'Done.';
   } catch (err) {
@@ -126,7 +129,7 @@ $('dlZip').addEventListener('click', async () => {
     const c = p.layer.canvas;
     if (!c) continue;
     const blob = await new Promise(r => c.toBlob(r, 'image/png'));
-    if (blob) zip.file('layers/' + p.file, blob);
+    if (blob) zip.file(p.file, blob);
   }
   save(await zip.generateAsync({ type: 'blob' }), result.title + '.zip');
   $('status').textContent = 'Done.';

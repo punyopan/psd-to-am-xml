@@ -2,11 +2,12 @@
 
 Convert a Photoshop `.psd` into an Alight Motion project `.xml`.
 
-## Status (v0)
+## Status
+- **Image layers** → Alight Motion image layers (position, size, opacity), each exported as a PNG
 - **Text layers** → Alight Motion text layers (position, size, color, content; font defaults to Roboto)
-- **Pixel layers** → magenta rectangle placeholders at the same position/size, plus each layer exported as a PNG next to the XML
-- Not handled: blend modes, layer effects, masks, hidden layers
-- Real image layers: pending a sample Alight Motion XML containing an image layer
+- Hidden layers skipped
+- Not handled yet: clipping masks, blend modes, layer effects
+- The XML points at PNGs in `/storage/emulated/0/Download/` with `file://` paths. Android normally references media by `content://` IDs assigned on save, so whether Alight Motion accepts these paths is being tested with `uri-test.xml`.
 
 ## Use on your phone
 Open **https://punyopan.github.io/psd-to-am-xml/**, pick a .psd, download the XML (or the .zip with layer PNGs). Runs entirely in the browser.

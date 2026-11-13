@@ -1,4 +1,4 @@
-"""PSD -> Alight Motion XML (v0: text layers + rect placeholders for pixel layers).
+"""PSD -> Alight Motion XML (text layers + image layers).
 Usage: python psd2am.py input.psd output.xml [--duration-ms 5000] [--fps 30]"""
 import argparse, html, os
 from psd_tools import PSDImage
@@ -27,6 +27,7 @@ def walk(group, out):
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument("psd"); ap.add_argument("out")
     ap.add_argument("--duration-ms", type=int, default=5000); ap.add_argument("--fps", type=int, default=30)
+    ap.add_argument("--folder", default="/storage/emulated/0/Download", help="phone folder the PNGs will be in")
     a = ap.parse_args()
     psd = PSDImage.open(a.psd); W, H, T = psd.width, psd.height, a.duration_ms
     layers = []; walk(psd, layers)
@@ -34,7 +35,7 @@ def main():
          f'<scene title="{html.escape(a.psd)}" width="{W}" height="{H}" exportWidth="{W}" exportHeight="{H}" '
          f'precompose="dynamicResolution" bgcolor="#ff000000" totalTime="{T}" fps="{a.fps}" modifiedTime="0" '
          f'amver="1028417" ffver="106" am="com.alightcreative.motion/5.0.273.1028417" amplatform="android" retime="freeze" retimeAdaptFPS="false">']
-    lid = 1000
+    lid = 1000; media = []
     for l in layers:  # PSD order is bottom->top, same as AM XML
         lid += 1
         cx, cy = l.left + l.width / 2, l.top + l.height / 2
@@ -47,11 +48,13 @@ def main():
                      f'size="{size:.6f}" font="googlefonts?name=Roboto&amp;weight=400" wrapWidth="{max(l.width,64)}" align="left">\n'
                      f'    {tr}\n    <fillColor value="{col}" />\n    <content>{html.escape(l.text)}</content>\n  </text>')
         else:
-            x.append(f'  <shape id="{lid}" label="{name}" startTime="0" endTime="{T}" fillType="color" mediaFillMode="fill" s=".rect">\n'
-                     f'    {tr}\n    <fillColor value="#80ff00ff" />\n'
-                     f'    <property name="size" type="vec2" value="{l.width:.6f},{l.height:.6f}" />\n  </shape>')
-            safe = "".join(c if c.isalnum() or c in "-_ " else "_" for c in l.name)
-            l.composite().save(os.path.join(os.path.dirname(os.path.abspath(a.out)), f"{lid}_{safe}.png"))
+            safe = "".join(c if (c.isascii() and c.isalnum()) or c in "-_" else "_" for c in l.name)
+            fn = f"{lid}_{safe}.png"; uri = f"file://{a.folder.rstrip('/')}/{fn}"
+            media.append(f'  <media uri="{uri}" filename="{fn}" title="{fn}" type="image/png" orientation="0" width="{l.width}" height="{l.height}" />')
+            x.append(f'  <shape id="{lid}" label="{name}" startTime="0" endTime="{T}" fillType="media" fillImage="{uri}" mediaFillMode="fill" s=".rect">\n'
+                     f'    {tr}\n    <property name="size" type="vec2" value="{l.width:.6f},{l.height:.6f}" />\n  </shape>')
+            l.composite().save(os.path.join(os.path.dirname(os.path.abspath(a.out)), fn))
+    x[2:2] = media
     x.append("</scene>")
     open(a.out, "w", encoding="utf-8").write("\n".join(x))
     print(f"{len(layers)} layers -> {a.out}")

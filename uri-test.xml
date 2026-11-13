@@ -1,0 +1,31 @@
+<?xml version='1.0' encoding='UTF-8' ?>
+<scene title="URI test" width="2000" height="2000" exportWidth="2000" exportHeight="2000" precompose="dynamicResolution" bgcolor="#ffd8d8d8" totalTime="3000" fps="30" modifiedTime="0" amver="1028417" ffver="106" am="com.alightcreative.motion/5.0.273.1028417" amplatform="android" retime="freeze" retimeAdaptFPS="false">
+  <media uri="file:///storage/emulated/0/Download/1001___3.png" filename="1001___3.png" title="1001___3.png" type="image/png" orientation="0" width="2000" height="2000" />
+  <media uri="/storage/emulated/0/Download/1002___2.png" filename="1002___2.png" title="1002___2.png" type="image/png" orientation="0" width="2000" height="2000" />
+  <media uri="content://com.android.externalstorage.documents/document/primary%3ADownload%2F1003___4.png" filename="1003___4.png" title="1003___4.png" type="image/png" orientation="0" width="2000" height="2000" />
+  <media uri="content://media/external/images/media/1000125502" filename="1008___1.png" title="1008___1.png" type="image/png" orientation="0" width="2000" height="2000" />
+  <shape id="2001" label="A file://" startTime="0" endTime="3000" fillType="media" fillImage="file:///storage/emulated/0/Download/1001___3.png" mediaFillMode="fill" s=".rect">
+    <transform>
+      <location value="500.000000,500.000000,0.000000" />
+    </transform>
+    <property name="size" type="vec2" value="1000.000000,1000.000000" />
+  </shape>
+  <shape id="2002" label="B plain path" startTime="0" endTime="3000" fillType="media" fillImage="/storage/emulated/0/Download/1002___2.png" mediaFillMode="fill" s=".rect">
+    <transform>
+      <location value="1500.000000,500.000000,0.000000" />
+    </transform>
+    <property name="size" type="vec2" value="1000.000000,1000.000000" />
+  </shape>
+  <shape id="2003" label="C SAF content" startTime="0" endTime="3000" fillType="media" fillImage="content://com.android.externalstorage.documents/document/primary%3ADownload%2F1003___4.png" mediaFillMode="fill" s=".rect">
+    <transform>
+      <location value="500.000000,1500.000000,0.000000" />
+    </transform>
+    <property name="size" type="vec2" value="1000.000000,1000.000000" />
+  </shape>
+  <shape id="2004" label="D control (your real URI)" startTime="0" endTime="3000" fillType="media" fillImage="content://media/external/images/media/1000125502" mediaFillMode="fill" s=".rect">
+    <transform>
+      <location value="1500.000000,1500.000000,0.000000" />
+    </transform>
+    <property name="size" type="vec2" value="1000.000000,1000.000000" />
+  </shape>
+</scene>
