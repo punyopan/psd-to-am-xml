@@ -46,7 +46,7 @@
         const size = st.fontSize || 24;
         x.push(`  <text id="${id}" label="${name}" startTime="0" endTime="${T}" fillType="color" mediaFillMode="fill" size="${f(size)}" font="googlefonts?name=Roboto&amp;weight=400" wrapWidth="${Math.max(Math.round(w), 64)}" align="left">\n    ${tr}\n    <fillColor value="${argb(st.fillColor)}" />\n    <content>${esc(l.text.text.replace(/\r/g, '\n'))}</content>\n  </text>`);
       } else {
-        const file = `${id}_${(l.name || 'layer').replace(/[^A-Za-z0-9\-_]/g, '_')}${opts.tag ? '_' + opts.tag : ''}.png`;
+        const file = `${id}_${(l.name || 'layer').replace(/[^A-Za-z0-9\-_]/g, '_')}.png`;
         const uri = uriFor(file, opts);
         media.push(`  <media uri="${esc(uri)}" filename="${esc(file)}" title="${esc(file)}" type="image/png" orientation="0" width="${Math.round(w)}" height="${Math.round(h)}" />`);
         x.push(`  <shape id="${id}" label="${name}" startTime="0" endTime="${T}" fillType="media" fillImage="${esc(uri)}" mediaFillMode="fill" s=".rect">\n    ${tr}\n    <property name="size" type="vec2" value="${f(w)},${f(h)}" />\n  </shape>`);
