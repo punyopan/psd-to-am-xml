@@ -32,7 +32,7 @@ def main():
     psd = PSDImage.open(a.psd); W, H, T = psd.width, psd.height, a.duration_ms
     layers = []; walk(psd, layers)
     x = [f"<?xml version='1.0' encoding='UTF-8' ?>",
-         f'<scene title="{html.escape(a.psd)}" width="{W}" height="{H}" exportWidth="{W}" exportHeight="{H}" '
+         f'<scene title="{html.escape(os.path.splitext(os.path.basename(a.psd))[0])}" width="{W}" height="{H}" exportWidth="{W}" exportHeight="{H}" '
          f'precompose="dynamicResolution" bgcolor="#ff000000" totalTime="{T}" fps="{a.fps}" modifiedTime="0" '
          f'amver="1028417" ffver="106" am="com.alightcreative.motion/5.0.273.1028417" amplatform="android" retime="freeze" retimeAdaptFPS="false">']
     lid = 1000; media = []
