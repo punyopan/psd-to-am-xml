@@ -43,6 +43,7 @@
       <div><label for="dur">Duration (sec)</label><input id="dur" type="number" inputmode="decimal" value="5" min="0.1" step="0.1"></div>
       <div><label for="fps">FPS</label><input id="fps" type="number" inputmode="numeric" value="30" min="1"></div>
     </div>
+    <label style="display:flex;align-items:center;gap:10px;margin-top:14px;font-size:15px"><input id="trim" type="checkbox" checked style="width:22px;height:22px;display:inline-block"> Crop transparent pixels from each layer</label>
     <button id="go" disabled>Convert</button>
     <div id="status"></div>
   </div>
@@ -58,7 +59,8 @@
     <ul>
       <li>Text layers → editable Alight Motion text (position, size, color)</li>
       <li>Image layers → Alight Motion image layers at the same position, size and opacity</li>
-      <li>Hidden layers are skipped</li>
+      <li>Transparent edges cropped off each layer (smaller PNGs, tighter layer boxes)</li>
+      <li>Hidden and empty layers are skipped</li>
       <li>Not yet: clipping masks, blend modes, layer effects, fonts (defaults to Roboto)</li>
     </ul>
     <p>Save the .zip to <b>Download</b> and extract it there (keep the folder name the same as the zip). Then import the XML from that folder in Alight Motion.</p>
@@ -89,6 +91,7 @@ $('go').addEventListener('click', async () => {
   try {
     const buf = await file.arrayBuffer();
     const psd = agPsd.readPsd(buf, { skipCompositeImageData: true, skipThumbnail: true });
+    if ($('trim').checked) { $('status').textContent = 'Trimming transparent pixels…'; await new Promise(r => setTimeout(r, 30)); trimLayers(psd.children); }
     const title = file.name.replace(/\.psd$/i, '').replace(/[^A-Za-z0-9\-_]/g, '_') || 'psd';
     result = PSD2AM.convert(psd, {
       title,
@@ -110,6 +113,35 @@ $('go').addEventListener('click', async () => {
   }
   $('go').disabled = false;
 });
+
+// Crop each image layer to its non-transparent pixels and move its bounds to match.
+function trimLayers(layers) {
+  for (const l of layers || []) {
+    if (l.children) { trimLayers(l.children); continue; }
+    if (l.hidden || l.text || !l.canvas) continue;
+    const c = l.canvas, w = c.width, h = c.height;
+    if (!w || !h) continue;
+    const d = c.getContext('2d').getImageData(0, 0, w, h).data;
+    let x0 = w, y0 = h, x1 = -1, y1 = -1;
+    for (let y = 0; y < h; y++) {
+      const row = y * w * 4;
+      for (let x = 0; x < w; x++) {
+        if (d[row + x * 4 + 3]) {
+          if (x < x0) x0 = x; if (x > x1) x1 = x;
+          if (y < y0) y0 = y; if (y > y1) y1 = y;
+        }
+      }
+    }
+    if (x1 < 0) { l.empty = true; continue; }
+    const cw = x1 - x0 + 1, ch = y1 - y0 + 1;
+    if (cw === w && ch === h) continue;
+    const out = document.createElement('canvas');
+    out.width = cw; out.height = ch;
+    out.getContext('2d').drawImage(c, x0, y0, cw, ch, 0, 0, cw, ch);
+    l.canvas = out;
+    l.left += x0; l.top += y0; l.right = l.left + cw; l.bottom = l.top + ch;
+  }
+}
 
 function save(blob, name) {
   const a = document.createElement('a');
