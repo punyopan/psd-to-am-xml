@@ -17,7 +17,14 @@ def text_props(layer):
     except Exception:
         return 24.0, "#ff000000"
 
-BLEND = {"NORMAL": None, "PASS_THROUGH": None, "MULTIPLY": "multiply"}  # confirmed Alight Motion names
+BLEND = {  # Photoshop -> Alight Motion names, confirmed from Alight Motion exports
+    "NORMAL": None, "PASS_THROUGH": None,
+    "MULTIPLY": "multiply", "SCREEN": "screen", "OVERLAY": "overlay",
+    "DARKEN": "darken", "LIGHTEN": "lighten", "SUBTRACT": "subtract",
+    "COLOR_DODGE": "color-dodge", "COLOR_BURN": "color-burn",
+    "HARD_LIGHT": "hard-light", "SOFT_LIGHT": "soft-light",
+    "DIFFERENCE": "diff", "EXCLUSION": "exclusion",
+}
 
 def layer_attrs(l):
     a = ' clippingMask="true"' if getattr(l, "clipping", False) else ""

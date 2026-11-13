@@ -4,9 +4,16 @@
   const hex = n => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, '0');
   const argb = (c, a = 255) => c ? `#${hex(a)}${hex(c.r)}${hex(c.g)}${hex(c.b)}` : '#ff000000';
   const f = n => Number(n).toFixed(6);
-  // Photoshop blend mode -> Alight Motion `blending` value. Only confirmed names are listed;
+  // Photoshop blend mode -> Alight Motion `blending` value (names confirmed from Alight Motion exports);
   // other modes fall back to normal and are reported.
-  const BLEND = { 'normal': null, 'pass through': null, 'multiply': 'multiply' };
+  const BLEND = {
+    'normal': null, 'pass through': null,
+    'multiply': 'multiply', 'screen': 'screen', 'overlay': 'overlay',
+    'darken': 'darken', 'lighten': 'lighten', 'subtract': 'subtract',
+    'color dodge': 'color-dodge', 'color burn': 'color-burn',
+    'hard light': 'hard-light', 'soft light': 'soft-light',
+    'difference': 'diff', 'exclusion': 'exclusion',
+  };
   const layerAttrs = (l, notes) => {
     let a = '';
     if (l.clipping) a += ' clippingMask="true"';

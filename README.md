@@ -7,7 +7,8 @@ Convert a Photoshop `.psd` into an Alight Motion project `.xml`.
 - **Text layers** → Alight Motion text layers (position, size, color, content; font defaults to Roboto)
 - Transparent edges cropped off each layer, with positions adjusted (`--no-trim` to disable)
 - Hidden and empty layers skipped
-- Not handled yet: clipping masks, blend modes, layer effects
+- Clipping masks and blend modes (Multiply, Screen, Overlay, Darken, Lighten, Subtract, Color Dodge/Burn, Hard/Soft Light, Difference, Exclusion); modes Alight Motion lacks fall back to Normal
+- Not handled yet: layer effects
 - The XML points at PNGs in `/storage/emulated/0/Download/<name>/` with `file://` paths (confirmed working in Alight Motion 5.0.273 on Android). Save `<name>.zip` to Download and extract it there into a folder with the same name, then import the XML. Use `--folder` in the Python script for a different folder.
 
 ## Use on your phone
