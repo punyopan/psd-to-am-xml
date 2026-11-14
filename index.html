@@ -32,7 +32,7 @@
 <body>
 <main>
   <h1>PSD → Alight Motion XML</h1>
-  <p class="sub">Runs entirely on your device. Nothing is uploaded. <span style="opacity:.6">v1.3 · save</span></p>
+  <p class="sub">Runs entirely on your device. Nothing is uploaded. <span style="opacity:.6">v1.4 · folders</span></p>
 
   <div class="card">
     <label class="drop" for="file">
@@ -56,10 +56,13 @@
         <option>1080p</option><option>4K</option></select></div>
     </div>
     <div id="amopts" style="margin-top:14px">
-      <label for="folder" style="font-size:13px;color:var(--mut);display:block;margin-bottom:4px">Images folder on your phone (Alight Motion looks here)</label>
-      <div style="display:flex;align-items:center;gap:6px"><span style="color:var(--mut);font-size:14px">Internal storage /</span>
-      <input id="folder" placeholder="Download/<file name>" style="flex:1;padding:12px;border-radius:10px;border:1px solid #3a3a3c;background:#000;color:var(--fg);font-size:16px"></div>
-      <div style="font-size:12px;color:var(--mut);margin-top:4px">Leave empty for Download/&lt;file name&gt;. Extract the zip into this exact folder.</div>
+      <div style="font-size:13px;color:var(--mut);margin-bottom:4px">Where you'll extract the images (Alight Motion looks here)</div>
+      <div class="row">
+        <div><label for="base">Phone folder</label><select id="base" style="width:100%;padding:12px;border-radius:10px;border:1px solid #3a3a3c;background:#000;color:var(--fg);font-size:16px">
+          <option>Download</option><option>Movies</option><option>Pictures</option><option>Documents</option><option>DCIM</option></select></div>
+        <div><label for="sub">Subfolder</label><input id="sub" placeholder="file name" style="width:100%;padding:12px;border-radius:10px;border:1px solid #3a3a3c;background:#000;color:var(--fg);font-size:16px"></div>
+      </div>
+      <div id="pathhint" style="font-size:12px;color:var(--mut);margin-top:4px"></div>
     </div>
     <label id="askrow" style="display:flex;align-items:center;gap:10px;margin-top:14px;font-size:15px" hidden><input id="ask" type="checkbox" checked style="width:22px;height:22px;display:inline-block"> Ask where to save</label>
     <label style="display:flex;align-items:center;gap:10px;margin-top:14px;font-size:15px"><input id="trim" type="checkbox" checked style="width:22px;height:22px;display:inline-block"> Crop transparent pixels from each layer</label>
@@ -100,10 +103,15 @@ document.getElementById('fmt').addEventListener('change', e => { const kf = e.ta
 $('askrow').hidden = !window.showSaveFilePicker;
 // folder typed by the user -> absolute path; strip slashes and anything that isn't a plain folder name
 function phoneFolder(title) {
-  const raw = ($('folder').value || '').trim().replace(/^\/?(storage\/emulated\/0\/|sdcard\/)?/i, '');
-  const parts = raw.split('/').map(x => x.trim()).filter(x => x && x !== '.' && x !== '..');
-  return '/storage/emulated/0/' + (parts.length ? parts.join('/') : 'Download/' + title);
+  // one subfolder name only: drop slashes, dots-only names and characters Android folders can't hold
+  const sub = ($('sub').value || '').trim().replace(/[\\/:*?"<>|]/g, '_').replace(/^\.+$/, '') || title;
+  return `/storage/emulated/0/${$('base').value}/${sub}`;
 }
+function showPath() {
+  const t = file ? (file.name.replace(/\.psd$/i, '').replace(/[^A-Za-z0-9\-_]/g, '_') || 'psd') : 'file name';
+  $('pathhint').textContent = 'Images will be expected in: ' + phoneFolder(t).replace('/storage/emulated/0/', '') + '/';
+}
+['base', 'sub'].forEach(id => $(id).addEventListener('input', showPath)); setTimeout(showPath);
 let file = null, result = null, resultKf = null, psdDoc = null;
 
 $('file').addEventListener('change', e => {
@@ -112,6 +120,7 @@ $('file').addEventListener('change', e => {
   $('go').disabled = !file;
   $('out').hidden = true;
   $('status').textContent = '';
+  showPath();
 });
 
 $('go').addEventListener('click', async () => {
