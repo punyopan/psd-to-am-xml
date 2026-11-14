@@ -31,7 +31,7 @@
 <body>
 <main>
   <h1>PSD → Alight Motion XML</h1>
-  <p class="sub">Runs entirely on your device. Nothing is uploaded. <span style="opacity:.6">v1.0 · blend</span></p>
+  <p class="sub">Runs entirely on your device. Nothing is uploaded. <span style="opacity:.6">v1.1 · keyflow</span></p>
 
   <div class="card">
     <label class="drop" for="file">
@@ -43,6 +43,11 @@
       <div><label for="dur">Duration (sec)</label><input id="dur" type="number" inputmode="decimal" value="5" min="0.1" step="0.1"></div>
       <div><label for="fps">FPS</label><input id="fps" type="number" inputmode="numeric" value="30" min="1"></div>
     </div>
+    <div style="margin-top:14px"><label for="fmt" style="font-size:13px;color:var(--mut);display:block;margin-bottom:4px">Convert for</label>
+      <select id="fmt" style="width:100%;padding:12px;border-radius:10px;border:1px solid #3a3a3c;background:#000;color:var(--fg);font-size:16px">
+        <option value="am">Alight Motion (.xml + PNGs)</option>
+        <option value="kf">Keyflow (.kf, one file)</option>
+      </select></div>
     <label style="display:flex;align-items:center;gap:10px;margin-top:14px;font-size:15px"><input id="trim" type="checkbox" checked style="width:22px;height:22px;display:inline-block"> Crop transparent pixels from each layer</label>
     <button id="go" disabled>Convert</button>
     <div id="status"></div>
@@ -52,6 +57,7 @@
     <b id="summary"></b>
     <button id="dlZip">Download XML + layer PNGs (.zip)</button>
     <button id="dlXml" class="sec">Download XML only</button>
+    <button id="dlKf" hidden>Download Keyflow project (.kf)</button>
   </div>
 
   <div class="card note">
@@ -64,7 +70,8 @@
       <li>Clipping masks and blend modes (Multiply, Screen, Overlay, Darken, Lighten, Subtract, Color Dodge/Burn, Hard/Soft Light, Difference, Exclusion)</li>
       <li>Not supported: modes Alight Motion lacks (e.g. Linear Dodge/Add) fall back to Normal; layer effects; fonts (defaults to Roboto)</li>
     </ul>
-    <p><b>Extract</b> the .zip in your <b>Download</b> folder (keep the folder name the same as the zip), then import the XML from that folder. Importing the zip without extracting does not load the images.</p>
+    <p><b>Keyflow:</b> choose "Keyflow" above and open the downloaded .kf with Keyflow's import. Layers keep their position, opacity, blend mode and hidden state; transparent edges are cropped.</p>
+    <p><b>Alight Motion:</b> <b>Extract</b> the .zip in your <b>Download</b> folder (keep the folder name the same as the zip), then import the XML from that folder. Importing the zip without extracting does not load the images.</p>
     <p><a style="color:var(--acc)" href="https://github.com/punyopan/psd-to-am-xml">Source on GitHub</a></p>
   </div>
 </main>
@@ -74,7 +81,7 @@
 <script src="convert.js"></script>
 <script>
 const $ = id => document.getElementById(id);
-let file = null, result = null;
+let file = null, result = null, resultKf = null, psdDoc = null;
 
 $('file').addEventListener('change', e => {
   file = e.target.files[0] || null;
@@ -92,8 +99,23 @@ $('go').addEventListener('click', async () => {
   try {
     const buf = await file.arrayBuffer();
     const psd = agPsd.readPsd(buf, { skipCompositeImageData: true, skipThumbnail: true });
+    if ($('fmt').value === 'kf') bakeClipping(psd.children);
     if ($('trim').checked) { $('status').textContent = 'Trimming transparent pixels…'; await new Promise(r => setTimeout(r, 30)); trimLayers(psd.children); }
     const title = file.name.replace(/\.psd$/i, '').replace(/[^A-Za-z0-9\-_]/g, '_') || 'psd';
+    const kf = $('fmt').value === 'kf';
+    $('dlZip').hidden = $('dlXml').hidden = kf; $('dlKf').hidden = !kf;
+    psdDoc = psd;
+    if (kf) {
+      resultKf = PSD2AM.convertKeyflow(psd, { title, fps: parseInt($('fps').value || '30', 10),
+        durationMs: Math.round(parseFloat($('dur').value || '5') * 1000) });
+      resultKf.title = title;
+      $('summary').textContent = `${resultKf.count} layers (${psd.width}×${psd.height})`
+        + (resultKf.notes.length ? '\nNote: ' + resultKf.notes.join('; ') : '')
+        + `\n\nOpen ${title}.kf with Keyflow's import. Images are inside the file, no extracting needed.`;
+      $('summary').style.whiteSpace = 'pre-wrap';
+      $('out').hidden = false; $('status').textContent = 'Done.'; $('go').disabled = false;
+      return;
+    }
     result = PSD2AM.convert(psd, {
       title,
       folder: '/storage/emulated/0/Download/' + title,
@@ -117,11 +139,27 @@ $('go').addEventListener('click', async () => {
   $('go').disabled = false;
 });
 
+// Keyflow has no clipping masks: like Keyflow's own PSD import, apply each clip to the pixels
+// (keep only the parts that sit over the layer it clips to).
+function bakeClipping(layers) {
+  let base = null;
+  for (const l of layers || []) {
+    if (l.children) { bakeClipping(l.children); base = null; continue; }
+    if (!l.clipping) { base = l; continue; }
+    if (!base || !base.canvas || !l.canvas) continue;
+    const c = document.createElement('canvas'); c.width = l.canvas.width; c.height = l.canvas.height;
+    const g = c.getContext('2d'); g.drawImage(l.canvas, 0, 0);
+    g.globalCompositeOperation = 'destination-in';
+    g.drawImage(base.canvas, base.left - l.left, base.top - l.top);
+    l.canvas = c; l.clipping = false; l.clipBaked = true;
+  }
+}
+
 // Crop each image layer to its non-transparent pixels and move its bounds to match.
 function trimLayers(layers) {
   for (const l of layers || []) {
     if (l.children) { trimLayers(l.children); continue; }
-    if (l.hidden || l.text || !l.canvas) continue;
+    if (l.text || !l.canvas) continue;
     const c = l.canvas, w = c.width, h = c.height;
     if (!w || !h) continue;
     const d = c.getContext('2d').getImageData(0, 0, w, h).data;
@@ -169,6 +207,27 @@ $('dlZip').addEventListener('click', async () => {
     if (blob) zip.file(p.file, blob);
   }
   save(await zip.generateAsync({ type: 'blob' }), result.title + '.zip');
+  $('status').textContent = 'Done.';
+});
+
+// Keyflow: zip with JSON (deflated) + images (stored), same layout Keyflow itself writes.
+$('dlKf').addEventListener('click', async () => {
+  $('status').textContent = 'Building .kf…';
+  const r = resultKf, zip = new JSZip();
+  zip.file('manifest.json', JSON.stringify(r.manifest), { compression: 'DEFLATE' });
+  zip.file('project.json', JSON.stringify(r.project), { compression: 'DEFLATE' });
+  // thumbnail: visible layers composited, longest side 256px
+  const s = 256 / Math.max(psdDoc.width, psdDoc.height), t = document.createElement('canvas');
+  t.width = Math.round(psdDoc.width * s); t.height = Math.round(psdDoc.height * s);
+  const g = t.getContext('2d'); g.fillStyle = '#1d1d1f'; g.fillRect(0, 0, t.width, t.height);
+  for (const m of r.media) { const l = m.layer; if (l.hidden) continue;
+    g.globalAlpha = l.opacity ?? 1; g.drawImage(l.canvas, l.left * s, l.top * s, l.canvas.width * s, l.canvas.height * s); }
+  zip.file('thumbnail.jpg', await new Promise(res => t.toBlob(res, 'image/jpeg', 0.85)), { compression: 'DEFLATE' });
+  for (const m of r.media) {
+    const blob = await new Promise(res => m.layer.canvas.toBlob(res, 'image/png'));
+    zip.file('media/' + m.file, blob, { compression: 'STORE', createFolders: false });
+  }
+  save(await zip.generateAsync({ type: 'blob', mimeType: 'application/octet-stream' }), r.title + '.kf');
   $('status').textContent = 'Done.';
 });
 </script>

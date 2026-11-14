@@ -11,6 +11,12 @@ Convert a Photoshop `.psd` into an Alight Motion project `.xml`.
 - Not handled yet: layer effects
 - The XML points at PNGs in `/storage/emulated/0/Download/<name>/` with `file://` paths (confirmed working in Alight Motion 5.0.273 on Android). Save `<name>.zip` to Download and extract it there into a folder with the same name, then import the XML. Use `--folder` in the Python script for a different folder.
 
+## Keyflow
+Choose **Keyflow** on the page to get a `.kf` project: one file with the images inside, opened with Keyflow's import (no extracting).
+Layers keep position, opacity, blend mode and hidden state; transparent edges are cropped; clipping is applied to the pixels.
+Format notes: `.kf` is a zip (`manifest.json`, `project.json`, `thumbnail.jpg`, `media/*.png` stored uncompressed). Layer position is the
+layer's top-left corner measured from the canvas centre, Y down; the layer list is top-first.
+
 ## Use on your phone
 Open **https://punyopan.github.io/psd-to-am-xml/**, pick a .psd, download the XML (or the .zip with layer PNGs). Runs entirely in the browser.
 

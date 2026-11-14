@@ -76,6 +76,59 @@
     return { xml: x.join('\n'), pixel, count: layers.length, skipped };
   }
 
-  if (typeof module !== 'undefined') module.exports = { convert };
-  else root.PSD2AM = { convert };
+
+  // ---------- Keyflow (.kf) ----------
+  // A .kf file is a zip: manifest.json + project.json + thumbnail.jpg + media/*.png (images stored inside).
+  // Layer position = top-left corner of the layer, measured from the canvas centre, Y down
+  // (confirmed: a PSD layer covering a 2000x2000 canvas is saved at -1000,-1000).
+  // Layer list is top-first. Blend modes use Photoshop-style names ("Linear Burn").
+  const titleCase = s => s.replace(/\b\w/g, c => c.toUpperCase());
+  function flattenAll(layers, out) {           // keeps hidden layers (Keyflow has a visibility flag)
+    for (const l of layers || []) {
+      if (l.children) { flattenAll(l.children, out); continue; }
+      const w = (l.right || 0) - (l.left || 0), h = (l.bottom || 0) - (l.top || 0);
+      if (w > 0 && h > 0) out.push(l);
+    }
+    return out;
+  }
+  function convertKeyflow(psd, opts = {}) {
+    const W = psd.width, H = psd.height, now = opts.now || Date.now();
+    const notes = [];
+    const maps = { transformX: {}, transformY: {}, scale: {}, rotate: {}, anchorX: {}, anchorY: {}, opacity: {}, visibility: {}, blendMode: {} };
+    const layers = [], media = [], assets = {};
+    let n = 0;
+    for (const l of flattenAll(psd.children, [])) {
+      if (l.empty) { notes.push(`${l.name}: empty`); continue; }
+      if (!l.canvas) { notes.push(`${l.name}: no pixel data, skipped`); continue; }
+      if (l.clipping) notes.push(`${l.name}: clipping mask not supported in Keyflow export yet, imported unclipped`);
+      if (l.clipBaked) notes.push(`${l.name}: clipping applied to the image (Keyflow has no clipping masks)`);
+      n++;
+      const id = `img_${now + n}`, file = `img_${now + 100 + n}.png`;
+      const w = l.right - l.left, h = l.bottom - l.top;
+      layers.push({ id, name: l.name || `Layer ${n}`, type: 'IMAGE', isLocked: false, inPointMs: 0, outPointMs: opts.durationMs || 5000,
+                    content: { kind: 'IMAGE', assetPath: `keyflow:/asset/${file}`, width: w, height: h } });
+      maps.transformX[id] = String(Math.round(l.left - W / 2));
+      maps.transformY[id] = String(Math.round(l.top - H / 2));
+      maps.scale[id] = '100'; maps.rotate[id] = '0'; maps.anchorX[id] = '0.5'; maps.anchorY[id] = '0.5';
+      maps.opacity[id] = String(l.opacity !== undefined ? +l.opacity.toFixed(4) : 1.0).replace(/^1$/, '1.0');
+      maps.visibility[id] = l.hidden ? 'false' : 'true';
+      const bm = l.blendMode || 'normal';
+      if (bm !== 'normal' && bm !== 'pass through') maps.blendMode[id] = titleCase(bm);
+      assets[file] = `/data/user/0/com.angkin.keyflow/files/${file}`;
+      media.push({ file, layer: l });
+    }
+    layers.reverse();                          // PSD is bottom-first, Keyflow is top-first
+    const project = { layers, ...maps, transformZ: {}, rotateX: {}, rotateY: {}, scaleY: {},
+      blendOpacity: {}, blendStrength: {}, maskMode: {}, motionBlur: {}, shutterAngle: 180, backgroundColor: 4279900701,
+      textPxPerUnit: 2.75, markers: [], volume: {}, gridVisible: false, previewQuality: 'Full', groupSpanGates: true,
+      kfPosX: {}, kfPosY: {}, kfPosZ: {}, kfScale: {}, kfScaleY: {}, kfRotate: {}, kfRotateX: {}, kfRotateY: {},
+      kfOpacity: {}, kfAnchorX: {}, kfAnchorY: {}, kfStrength: {} };
+    const manifest = { format: 1, exportedAt: now, app: '1.5.10', build: 39, includesMedia: true, device: 'psd-to-am-xml',
+      project: { name: opts.title || 'PSD Import', fps: opts.fps || 30, ratio: opts.ratio || '3:4', resolution: opts.resolution || '1080p', createdAt: now },
+      assets };
+    return { project, manifest, media, notes, count: media.length };
+  }
+
+  if (typeof module !== 'undefined') module.exports = { convert, convertKeyflow };
+  else root.PSD2AM = { convert, convertKeyflow };
 })(this);
