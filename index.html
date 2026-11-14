@@ -7,6 +7,7 @@
 <style>
   :root { --bg:#111; --card:#1c1c1e; --fg:#f2f2f2; --mut:#9a9aa0; --acc:#7c5cff; }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
   body { margin:0; font:16px/1.45 system-ui, -apple-system, sans-serif; background:var(--bg); color:var(--fg); }
   main { max-width:520px; margin:0 auto; padding:20px 16px 48px; }
   h1 { font-size:22px; margin:8px 0 4px; }
@@ -31,7 +32,7 @@
 <body>
 <main>
   <h1>PSD → Alight Motion XML</h1>
-  <p class="sub">Runs entirely on your device. Nothing is uploaded. <span style="opacity:.6">v1.1 · keyflow</span></p>
+  <p class="sub">Runs entirely on your device. Nothing is uploaded. <span style="opacity:.6">v1.2 · keyflow</span></p>
 
   <div class="card">
     <label class="drop" for="file">
@@ -48,6 +49,12 @@
         <option value="am">Alight Motion (.xml + PNGs)</option>
         <option value="kf">Keyflow (.kf, one file)</option>
       </select></div>
+    <div class="row" id="kfopts" style="margin-top:14px" hidden>
+      <div><label for="ratio">Keyflow canvas</label><select id="ratio" style="width:100%;padding:12px;border-radius:10px;border:1px solid #3a3a3c;background:#000;color:var(--fg);font-size:16px">
+        <option>3:4</option><option>21:9</option><option value="1:1">1:1 (untested)</option><option value="16:9">16:9 (untested)</option><option value="9:16">9:16 (untested)</option></select></div>
+      <div><label for="res">Resolution</label><select id="res" style="width:100%;padding:12px;border-radius:10px;border:1px solid #3a3a3c;background:#000;color:var(--fg);font-size:16px">
+        <option>1080p</option><option>4K</option></select></div>
+    </div>
     <label style="display:flex;align-items:center;gap:10px;margin-top:14px;font-size:15px"><input id="trim" type="checkbox" checked style="width:22px;height:22px;display:inline-block"> Crop transparent pixels from each layer</label>
     <button id="go" disabled>Convert</button>
     <div id="status"></div>
@@ -81,6 +88,7 @@
 <script src="convert.js"></script>
 <script>
 const $ = id => document.getElementById(id);
+document.getElementById('fmt').addEventListener('change', e => { $('kfopts').hidden = e.target.value !== 'kf'; $('out').hidden = true; });
 let file = null, result = null, resultKf = null, psdDoc = null;
 
 $('file').addEventListener('change', e => {
@@ -106,7 +114,7 @@ $('go').addEventListener('click', async () => {
     $('dlZip').hidden = $('dlXml').hidden = kf; $('dlKf').hidden = !kf;
     psdDoc = psd;
     if (kf) {
-      resultKf = PSD2AM.convertKeyflow(psd, { title, fps: parseInt($('fps').value || '30', 10),
+      resultKf = PSD2AM.convertKeyflow(psd, { title, ratio: $('ratio').value, resolution: $('res').value, fps: parseInt($('fps').value || '30', 10),
         durationMs: Math.round(parseFloat($('dur').value || '5') * 1000) });
       resultKf.title = title;
       $('summary').textContent = `${resultKf.count} layers (${psd.width}×${psd.height})`

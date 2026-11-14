@@ -118,6 +118,15 @@
       media.push({ file, layer: l });
     }
     layers.reverse();                          // PSD is bottom-first, Keyflow is top-first
+    // Like Keyflow's own PSD import: wrap everything in one group named after the file, at 0,0
+    if (layers.length && opts.group !== false) {
+      const gid = `group_${now}`;
+      for (const l of layers) l.groupId = gid;
+      layers.unshift({ id: gid, name: opts.title || 'PSD', type: 'GROUP', isLocked: false, inPointMs: 0, outPointMs: opts.durationMs || 5000,
+        content: { kind: 'GROUP', childIds: layers.map(l => l.id), anchorX: 0, anchorY: 0, collapse: false, cameraPassThrough: false } });
+      Object.assign(maps.transformX, { [gid]: '0' }); maps.transformY[gid] = '0'; maps.scale[gid] = '100'; maps.rotate[gid] = '0';
+      maps.anchorX[gid] = '0.5'; maps.anchorY[gid] = '0.5'; maps.opacity[gid] = '1.0'; maps.visibility[gid] = 'true';
+    }
     const project = { layers, ...maps, transformZ: {}, rotateX: {}, rotateY: {}, scaleY: {},
       blendOpacity: {}, blendStrength: {}, maskMode: {}, motionBlur: {}, shutterAngle: 180, backgroundColor: 4279900701,
       textPxPerUnit: 2.75, markers: [], volume: {}, gridVisible: false, previewQuality: 'Full', groupSpanGates: true,
