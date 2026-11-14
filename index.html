@@ -32,7 +32,7 @@
 <body>
 <main>
   <h1>PSD → Alight Motion XML</h1>
-  <p class="sub">Runs entirely on your device. Nothing is uploaded. <span style="opacity:.6">v1.4 · folders</span></p>
+  <p class="sub">Runs entirely on your device. Nothing is uploaded. <span style="opacity:.6">v1.5 · folders</span></p>
 
   <div class="card">
     <label class="drop" for="file">
@@ -156,11 +156,13 @@ $('go').addEventListener('click', async () => {
       durationMs: Math.round(parseFloat($('dur').value || '5') * 1000),
       fps: parseInt($('fps').value || '30', 10)
     });
-    result.title = title;
+    // name the zip after the folder the XML expects, so extracting it creates exactly that folder
+    const folderName = phoneFolder(title).split('/').pop();
+    result.title = folderName;
     const texts = result.count - result.pixel.length;
     $('summary').textContent = `${result.count} layers: ${texts} text, ${result.pixel.length} image (${psd.width}×${psd.height})`
       + (result.skipped.length ? '\nNote: ' + result.skipped.join('; ') : '')
-      + `\n\nExtract ${title}.zip so the files end up in ${phoneFolder(title).replace('/storage/emulated/0/', '')}/, then import the XML.`;
+      + `\n\nSave ${folderName}.zip in ${$('base').value}, then extract it there. That creates ${phoneFolder(title).replace('/storage/emulated/0/', '')}/ with the images. Import the XML from that folder.`;
     $('summary').style.whiteSpace = 'pre-wrap';
     $('out').hidden = false;
     $('status').textContent = 'Done.';
