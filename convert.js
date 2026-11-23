@@ -33,6 +33,18 @@
     return `file://${dir}/${file}`;
   };
 
+  // Carry each folder's opacity and hidden state down to the layers inside it
+  // (Photoshop multiplies folder opacity into its contents; a hidden folder hides everything inside).
+  function applyFolders(layers, op = 1, hidden = false) {
+    for (const l of layers || []) {
+      if (l.children) {
+        applyFolders(l.children, op * (l.opacity ?? 1), hidden || !!l.hidden);
+        continue;
+      }
+      if (op !== 1) l.opacity = (l.opacity ?? 1) * op;
+      if (hidden) { l.hidden = true; l.inHiddenFolder = true; }
+    }
+  }
   function flatten(layers, out, skipped = []) {
     for (const l of layers || []) {
       if (l.hidden) { skipped.push(`${l.name}: hidden`); continue; }
@@ -48,6 +60,7 @@
   function convert(psd, opts = {}) {
     const W = psd.width, H = psd.height, T = opts.durationMs || 5000, fps = opts.fps || 30;
     const pixel = [], media = [], skipped = [];
+    applyFolders(psd.children);
     const layers = flatten(psd.children, [], skipped); // ag-psd: index 0 = bottom, same as AM
     const x = [`<?xml version='1.0' encoding='UTF-8' ?>`,
       `<scene title="${esc(opts.title || 'PSD Import')}" width="${W}" height="${H}" exportWidth="${W}" exportHeight="${H}" precompose="dynamicResolution" bgcolor="#ff000000" totalTime="${T}" fps="${fps}" modifiedTime="0" amver="1028417" ffver="106" am="com.alightcreative.motion/5.0.273.1028417" amplatform="android" retime="freeze" retimeAdaptFPS="false">`];
@@ -97,6 +110,7 @@
     const maps = { transformX: {}, transformY: {}, scale: {}, rotate: {}, anchorX: {}, anchorY: {}, opacity: {}, visibility: {}, blendMode: {} };
     const layers = [], media = [], assets = {};
     let n = 0;
+    applyFolders(psd.children);
     for (const l of flattenAll(psd.children, [])) {
       if (l.empty) { notes.push(`${l.name}: empty`); continue; }
       if (!l.canvas) { notes.push(`${l.name}: no pixel data, skipped`); continue; }
@@ -138,6 +152,6 @@
     return { project, manifest, media, notes, count: media.length };
   }
 
-  if (typeof module !== 'undefined') module.exports = { convert, convertKeyflow };
+  if (typeof module !== 'undefined') module.exports = { convert, convertKeyflow, applyFolders };
   else root.PSD2AM = { convert, convertKeyflow };
 })(this);
