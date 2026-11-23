@@ -32,7 +32,7 @@
 <body>
 <main>
   <h1>PSD → Alight Motion XML</h1>
-  <p class="sub">Runs entirely on your device. Nothing is uploaded. <span style="opacity:.6">v1.6 · folders</span></p>
+  <p class="sub">Runs entirely on your device. Nothing is uploaded. <span style="opacity:.6">v1.7 · fit</span></p>
 
   <div class="card">
     <label class="drop" for="file">
@@ -55,6 +55,7 @@
       <div><label for="res">Resolution</label><select id="res" style="width:100%;padding:12px;border-radius:10px;border:1px solid #3a3a3c;background:#000;color:var(--fg);font-size:16px">
         <option>1080p</option><option>4K</option></select></div>
     </div>
+    <label id="fitrow" style="display:flex;align-items:center;gap:10px;margin-top:10px;font-size:15px" hidden><input id="fit" type="checkbox" checked style="width:22px;height:22px;display:inline-block"> Fit PSD to canvas (shrink if bigger)</label>
     <div id="amopts" style="margin-top:14px">
       <div style="font-size:13px;color:var(--mut);margin-bottom:4px">Where you'll extract the images (Alight Motion looks here)</div>
       <div class="row">
@@ -99,7 +100,7 @@
 <script>
 const $ = id => document.getElementById(id);
 document.getElementById('fmt').addEventListener('change', e => { const kf = e.target.value === 'kf';
-  $('kfopts').hidden = !kf; $('amopts').hidden = kf; $('out').hidden = true; });
+  $('kfopts').hidden = !kf; $('fitrow').hidden = !kf; $('amopts').hidden = kf; $('out').hidden = true; });
 $('askrow').hidden = !window.showSaveFilePicker;
 // folder typed by the user -> absolute path; strip slashes and anything that isn't a plain folder name
 function phoneFolder(title) {
@@ -135,13 +136,22 @@ $('go').addEventListener('click', async () => {
     if ($('trim').checked) { $('status').textContent = 'Trimming transparent pixels…'; await new Promise(r => setTimeout(r, 30)); trimLayers(psd.children); }
     const title = file.name.replace(/\.psd$/i, '').replace(/[^A-Za-z0-9\-_]/g, '_') || 'psd';
     const kf = $('fmt').value === 'kf';
+    let fitNote = '';
+    if (kf && $('fit').checked) {
+      const cv = keyflowCanvas($('ratio').value, $('res').value), f = Math.min(cv.w / psd.width, cv.h / psd.height);
+      if (f < 1) {
+        scaleLayers(psd.children, f);
+        fitNote = `\nShrunk to ${Math.round(f * 100)}% to fit the ${cv.w}×${cv.h} canvas.`;
+        psd.width = Math.round(psd.width * f); psd.height = Math.round(psd.height * f);
+      }
+    }
     $('dlZip').hidden = $('dlXml').hidden = kf; $('dlKf').hidden = !kf;
     psdDoc = psd;
     if (kf) {
       resultKf = PSD2AM.convertKeyflow(psd, { title, ratio: $('ratio').value, resolution: $('res').value, fps: parseInt($('fps').value || '30', 10),
         durationMs: Math.round(parseFloat($('dur').value || '5') * 1000) });
       resultKf.title = title;
-      $('summary').textContent = `${resultKf.count} layers (${psd.width}×${psd.height})`
+      $('summary').textContent = `${resultKf.count} layers (${psd.width}×${psd.height})` + fitNote
         + (resultKf.notes.length ? '\nNote: ' + resultKf.notes.join('; ') : '')
         + `\n\nOpen ${title}.kf with Keyflow's import. Images are inside the file, no extracting needed.`;
       $('summary').style.whiteSpace = 'pre-wrap';
@@ -172,6 +182,23 @@ $('go').addEventListener('click', async () => {
   }
   $('go').disabled = false;
 });
+
+// Keyflow canvas in pixels: the resolution sets the short side (1080p -> 1080, 4K -> 2160), ratio sets the shape.
+function keyflowCanvas(ratio, res) {
+  const [a, b] = ratio.split(':').map(Number), short = { '720p': 720, '1080p': 1080, '2K': 1440, '4K': 2160 }[res] || 1080;
+  return a >= b ? { w: Math.round(short * a / b), h: short } : { w: short, h: Math.round(short * b / a) };
+}
+// Shrink every layer (pixels and position) by f, so a PSD bigger than the canvas fits inside it.
+function scaleLayers(layers, f) {
+  for (const l of layers || []) {
+    if (l.children) { scaleLayers(l.children, f); continue; }
+    if (!l.canvas) continue;
+    const w = Math.max(1, Math.round(l.canvas.width * f)), h = Math.max(1, Math.round(l.canvas.height * f));
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const g = c.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(l.canvas, 0, 0, w, h);
+    l.canvas = c; l.left = Math.round(l.left * f); l.top = Math.round(l.top * f); l.right = l.left + w; l.bottom = l.top + h;
+  }
+}
 
 // Keyflow has no clipping masks: like Keyflow's own PSD import, apply each clip to the pixels
 // (keep only the parts that sit over the layer it clips to).
@@ -260,11 +287,12 @@ $('dlKf').addEventListener('click', async () => {
   zip.file('manifest.json', JSON.stringify(r.manifest), { compression: 'DEFLATE' });
   zip.file('project.json', JSON.stringify(r.project), { compression: 'DEFLATE' });
   // thumbnail: visible layers composited, longest side 256px
-  const s = 256 / Math.max(psdDoc.width, psdDoc.height), t = document.createElement('canvas');
-  t.width = Math.round(psdDoc.width * s); t.height = Math.round(psdDoc.height * s);
+  const cv = keyflowCanvas($('ratio').value, $('res').value), s = 256 / Math.max(cv.w, cv.h), t = document.createElement('canvas');
+  t.width = Math.round(cv.w * s); t.height = Math.round(cv.h * s);
   const g = t.getContext('2d'); g.fillStyle = '#1d1d1f'; g.fillRect(0, 0, t.width, t.height);
+  const ox = (cv.w - psdDoc.width) / 2, oy = (cv.h - psdDoc.height) / 2;   // PSD centred on the canvas
   for (const m of r.media) { const l = m.layer; if (l.hidden) continue;
-    g.globalAlpha = l.opacity ?? 1; g.drawImage(l.canvas, l.left * s, l.top * s, l.canvas.width * s, l.canvas.height * s); }
+    g.globalAlpha = l.opacity ?? 1; g.drawImage(l.canvas, (l.left + ox) * s, (l.top + oy) * s, l.canvas.width * s, l.canvas.height * s); }
   zip.file('thumbnail.jpg', await new Promise(res => t.toBlob(res, 'image/jpeg', 0.85)), { compression: 'DEFLATE' });
   for (const m of r.media) {
     const blob = await new Promise(res => m.layer.canvas.toBlob(res, 'image/png'));
