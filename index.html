@@ -32,7 +32,7 @@
 <body>
 <main>
   <h1>PSD → Alight Motion XML</h1>
-  <p class="sub">Runs entirely on your device. Nothing is uploaded. <span style="opacity:.6">v1.7 · fit</span></p>
+  <p class="sub">Runs entirely on your device. Nothing is uploaded. <span style="opacity:.6">v1.8 · png</span></p>
 
   <div class="card">
     <label class="drop" for="file">
@@ -76,6 +76,7 @@
     <button id="dlZip">Download XML + layer PNGs (.zip)</button>
     <button id="dlXml" class="sec">Download XML only</button>
     <button id="dlKf" hidden>Download Keyflow project (.kf)</button>
+    <button id="dlPng" class="sec" hidden>Download cropped layers as PNGs (.zip)</button>
   </div>
 
   <div class="card note">
@@ -145,7 +146,7 @@ $('go').addEventListener('click', async () => {
         psd.width = Math.round(psd.width * f); psd.height = Math.round(psd.height * f);
       }
     }
-    $('dlZip').hidden = $('dlXml').hidden = kf; $('dlKf').hidden = !kf;
+    $('dlZip').hidden = $('dlXml').hidden = kf; $('dlKf').hidden = $('dlPng').hidden = !kf;
     psdDoc = psd;
     if (kf) {
       resultKf = PSD2AM.convertKeyflow(psd, { title, ratio: $('ratio').value, resolution: $('res').value, fps: parseInt($('fps').value || '30', 10),
@@ -300,6 +301,21 @@ $('dlKf').addEventListener('click', async () => {
   }
   $('status').textContent = 'Done.';
   await save(await zip.generateAsync({ type: 'blob', mimeType: 'application/octet-stream' }), r.title + '.kf');
+});
+
+// Every cropped layer as its own PNG, numbered bottom to top like the PSD (01 = bottom layer).
+$('dlPng').addEventListener('click', async () => {
+  $('status').textContent = 'Building PNG zip…';
+  const r = resultKf, zip = new JSZip(), used = new Set(), pad = String(r.media.length).length;
+  for (let i = 0; i < r.media.length; i++) {
+    const l = r.media[i].layer;
+    let base = `${String(i + 1).padStart(Math.max(2, pad), '0')}_${(l.name || 'layer').replace(/[\\/:*?"<>|]/g, '_')}`;
+    while (used.has(base)) base += '_';
+    used.add(base);
+    zip.file(base + (l.hidden ? '_hidden' : '') + '.png', await new Promise(res => l.canvas.toBlob(res, 'image/png')), { createFolders: false });
+  }
+  $('status').textContent = 'Done.';
+  await save(await zip.generateAsync({ type: 'blob' }), r.title + '_layers.zip');
 });
 </script>
 </body>
