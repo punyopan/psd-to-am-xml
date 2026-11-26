@@ -27,7 +27,8 @@ BLEND = {  # Photoshop -> Alight Motion names, confirmed from Alight Motion expo
 }
 
 def layer_attrs(l):
-    a = ' clippingMask="true"' if getattr(l, "clipping", False) else ""
+    a = ' hidden="true"' if not l.is_visible() else ""   # is_visible() also covers hidden folders
+    a += ' clippingMask="true"' if getattr(l, "clipping", False) else ""
     bm = getattr(l.blend_mode, "name", str(l.blend_mode))
     if bm in BLEND:
         if BLEND[bm]: a += f' blending="{BLEND[bm]}"'
@@ -39,7 +40,7 @@ def walk(group, out):
     for l in group:
         if l.is_group():
             walk(l, out); continue
-        if not l.is_visible() or l.width == 0: continue
+        if l.width == 0: continue          # hidden layers are kept and marked hidden
         out.append(l)
 
 def main():

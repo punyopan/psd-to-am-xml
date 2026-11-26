@@ -6,7 +6,7 @@ Convert a Photoshop `.psd` into an Alight Motion project `.xml`.
 - **Image layers** → Alight Motion image layers (position, size, opacity), each exported as a PNG
 - **Text layers** → Alight Motion text layers (position, size, color, content; font defaults to Roboto)
 - Transparent edges cropped off each layer, with positions adjusted (`--no-trim` to disable)
-- Hidden and empty layers skipped (layers inside a hidden folder too)
+- Hidden layers kept and marked hidden (`hidden="true"`), including layers inside hidden folders; empty layers skipped
 - Layer folders: contents are brought out in order; a folder's opacity is multiplied into the layers inside (folders themselves are not recreated yet)
 - Clipping masks and blend modes (Multiply, Screen, Overlay, Darken, Lighten, Subtract, Color Dodge/Burn, Hard/Soft Light, Difference, Exclusion); modes Alight Motion lacks fall back to Normal
 - Not handled yet: layer effects

@@ -16,6 +16,7 @@
   };
   const layerAttrs = (l, notes) => {
     let a = '';
+    if (l.hidden) a += ' hidden="true"';     // kept, but switched off (confirmed from an Alight Motion export)
     if (l.clipping) a += ' clippingMask="true"';
     const bm = l.blendMode || 'normal';
     if (bm in BLEND) { if (BLEND[bm]) a += ` blending="${BLEND[bm]}"`; }
@@ -47,7 +48,6 @@
   }
   function flatten(layers, out, skipped = []) {
     for (const l of layers || []) {
-      if (l.hidden) { skipped.push(`${l.name}: hidden`); continue; }
       if (l.empty) { skipped.push(`${l.name}: empty`); continue; }
       if (l.children) { flatten(l.children, out, skipped); continue; }
       const w = (l.right || 0) - (l.left || 0), h = (l.bottom || 0) - (l.top || 0);
