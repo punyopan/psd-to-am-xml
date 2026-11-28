@@ -96,11 +96,13 @@
   // (confirmed: a PSD layer covering a 2000x2000 canvas is saved at -1000,-1000).
   // Layer list is top-first. Blend modes use Photoshop-style names ("Linear Burn").
   const titleCase = s => s.replace(/\b\w/g, c => c.toUpperCase());
-  function flattenAll(layers, out) {           // keeps hidden layers (Keyflow has a visibility flag)
+  // Bottom-first list of layers. Each layer remembers its folder; after a folder's contents comes a
+  // { folderEnd } marker, so a folder's null can be placed just above its layers.
+  function flattenAll(layers, out, folder = null) {  // keeps hidden layers (Keyflow has a visibility flag)
     for (const l of layers || []) {
-      if (l.children) { flattenAll(l.children, out); continue; }
+      if (l.children) { l._parentFolder = folder; flattenAll(l.children, out, l); out.push({ folderEnd: l }); continue; }
       const w = (l.right || 0) - (l.left || 0), h = (l.bottom || 0) - (l.top || 0);
-      if (w > 0 && h > 0) out.push(l);
+      if (w > 0 && h > 0) { l._folder = folder; out.push(l); }
     }
     return out;
   }
@@ -111,7 +113,26 @@
     const layers = [], media = [], assets = {};
     let n = 0;
     applyFolders(psd.children);
+    // PSD folders -> Keyflow null objects (parenting): each folder's layers get parentId = its null,
+    // nested folders' nulls are parented to the outer null. Positions stay in canvas coordinates,
+    // as in Keyflow's own projects; each null starts at the centre of its folder's contents.
+    const useNulls = opts.nulls !== false;
+    const nullIds = new Map(), bounds = new Map();
+    const nullIdOf = f => { if (!nullIds.has(f)) nullIds.set(f, `null_${now + 500 + nullIds.size}`); return nullIds.get(f); };
     for (const l of flattenAll(psd.children, [])) {
+      if (l.folderEnd) {
+        const f = l.folderEnd, b = bounds.get(f);
+        if (!useNulls || !b) continue;                       // folder with no exported layers: no null
+        const id = nullIdOf(f);
+        layers.push({ id, name: f.name || 'Folder', type: 'NULL', isLocked: false, inPointMs: 0, outPointMs: opts.durationMs || 5000,
+                      content: { kind: 'NULL' }, ...(f._parentFolder ? { parentId: nullIdOf(f._parentFolder) } : {}) });
+        maps.transformX[id] = String(Math.round((b[0] + b[2]) / 2 - W / 2));
+        maps.transformY[id] = String(Math.round((b[1] + b[3]) / 2 - H / 2));
+        maps.scale[id] = '100'; maps.rotate[id] = '0'; maps.anchorX[id] = '0.5'; maps.anchorY[id] = '0.5';
+        maps.opacity[id] = '1.0'; maps.visibility[id] = 'true';
+        notes.push(`folder "${f.name}" → null (parent of its layers)`);
+        continue;
+      }
       if (l.empty) { notes.push(`${l.name}: empty`); continue; }
       if (!l.canvas) { notes.push(`${l.name}: no pixel data, skipped`); continue; }
       if (l.clipping) notes.push(`${l.name}: clipping mask not supported in Keyflow export yet, imported unclipped`);
@@ -120,7 +141,12 @@
       const id = `img_${now + n}`, file = `img_${now + 100 + n}.png`;
       const w = l.right - l.left, h = l.bottom - l.top;
       layers.push({ id, name: l.name || `Layer ${n}`, type: 'IMAGE', isLocked: false, inPointMs: 0, outPointMs: opts.durationMs || 5000,
-                    content: { kind: 'IMAGE', assetPath: `keyflow:/asset/${file}`, width: w, height: h } });
+                    content: { kind: 'IMAGE', assetPath: `keyflow:/asset/${file}`, width: w, height: h },
+                    ...(useNulls && l._folder ? { parentId: nullIdOf(l._folder) } : {}) });
+      for (let f = l._folder; f; f = f._parentFolder) {     // grow every enclosing folder's bounds
+        const b = bounds.get(f);
+        bounds.set(f, b ? [Math.min(b[0], l.left), Math.min(b[1], l.top), Math.max(b[2], l.right), Math.max(b[3], l.bottom)] : [l.left, l.top, l.right, l.bottom]);
+      }
       maps.transformX[id] = String(Math.round(l.left - W / 2));
       maps.transformY[id] = String(Math.round(l.top - H / 2));
       maps.scale[id] = '100'; maps.rotate[id] = '0'; maps.anchorX[id] = '0.5'; maps.anchorY[id] = '0.5';
@@ -149,7 +175,7 @@
     const manifest = { format: 1, exportedAt: now, app: '1.5.10', build: 39, includesMedia: true, device: 'psd-to-am-xml',
       project: { name: opts.title || 'PSD Import', fps: opts.fps || 30, ratio: opts.ratio || '3:4', resolution: opts.resolution || '1080p', createdAt: now },
       assets };
-    return { project, manifest, media, notes, count: media.length };
+    return { project, manifest, media, notes, count: media.length, nulls: nullIds.size };
   }
 
   if (typeof module !== 'undefined') module.exports = { convert, convertKeyflow, applyFolders };
