@@ -16,6 +16,10 @@ Convert a Photoshop `.psd` into an Alight Motion project `.xml`.
 Choose **Keyflow** on the page to get a `.kf` project: one file with the images inside, opened with Keyflow's import (no extracting).
 Layers keep position, opacity, blend mode and hidden state; transparent edges are cropped; clipping is applied to the pixels.
 PSD folders become Keyflow null objects (parenting): each folder's layers get `parentId` = the folder's null, nested folders give nested nulls, and each null starts at the centre of its folder's contents.
+**Rig with name tags (keeps the drawing's layer order):** a small dot layer named `@arm` on the joint becomes a null exactly there;
+`@forearm > arm` attaches that null to the `arm` null; a layer named `sleeve #forearm` is attached to the `forearm` null (the tag is
+removed from the name). Dot layers are never exported. In folder mode, an `@` dot inside a folder sets where that folder's null goes.
+The page's Rig menu defaults to Auto: name tags if any layer uses `@`/`#`, otherwise folders.
 A null is a 200×200 box placed by its top-left corner; a parented layer's position is measured from its parent null's centre (otherwise from the canvas centre).
 Format notes: `.kf` is a zip (`manifest.json`, `project.json`, `thumbnail.jpg`, `media/*.png` stored uncompressed). Layer position is the
 layer's top-left corner measured from the canvas centre, Y down; the layer list is top-first.

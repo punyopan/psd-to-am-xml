@@ -50,6 +50,7 @@
     for (const l of layers || []) {
       if (l.empty) { skipped.push(`${l.name}: empty`); continue; }
       if (l.children) { flatten(l.children, out, skipped); continue; }
+      if (/^\s*@/.test(l.name || '')) { skipped.push(`${l.name}: rig pivot (Keyflow only)`); continue; }
       const w = (l.right || 0) - (l.left || 0), h = (l.bottom || 0) - (l.top || 0);
       if (w <= 0 || h <= 0) continue;
       out.push(l);
@@ -71,7 +72,7 @@
       const cx = l.left + w / 2, cy = l.top + h / 2;
       const op = l.opacity !== undefined && l.opacity < 1 ? `\n      <opacity value="${f(l.opacity)}" />` : '';
       const tr = `<transform>\n      <location value="${f(cx)},${f(cy)},0.000000" />${op}\n    </transform>`;
-      const name = esc(l.name || `Layer ${id}`);
+      const name = esc((l.name || `Layer ${id}`).replace(/\s*#[^\s#]+\s*$/, '') || l.name);
       if (l.text && l.text.text != null) {
         const st = l.text.style || {};
         const size = st.fontSize || 24;
@@ -113,44 +114,61 @@
     const layers = [], media = [], assets = {};
     let n = 0;
     applyFolders(psd.children);
-    // PSD folders -> Keyflow null objects (parenting): each folder's layers get parentId = its null,
-    // nested folders' nulls are parented to the outer null. Positions stay in canvas coordinates,
-    // as in Keyflow's own projects; each null starts at the centre of its folder's contents.
-    const useNulls = opts.nulls !== false;
-    const nullIds = new Map(), bounds = new Map();
-    const NULL_HALF = 100, nullCenter = new Map(), place = [];
-    const nullIdOf = f => { if (!nullIds.has(f)) nullIds.set(f, `null_${now + 500 + nullIds.size}`); return nullIds.get(f); };
-    for (const l of flattenAll(psd.children, [])) {
+    // ---- Rigging: Keyflow null objects + parentId ----
+    // Keyflow rules (confirmed): a null is a 200x200 box placed by its top-left corner; a layer with a
+    // parent is positioned relative to the parent null's centre, otherwise relative to the canvas centre.
+    // Parenting is independent of stacking order, so the drawing's layer order is always kept.
+    //  'folders': each PSD folder becomes a null at the centre of its contents.
+    //  'tags'   : a dot layer named "@arm" (or "@forearm > arm") becomes a null exactly on the dot;
+    //             a layer named "sleeve #forearm" is attached to the "forearm" null.
+    //  'auto'   : tags if any layer uses @ or #, otherwise folders.
+    const all = flattenAll(psd.children, []);
+    const isPivot = l => !l.folderEnd && /^\s*@/.test(l.name || '');
+    const pivotSpec = l => { const m = /^\s*@\s*([^>]*?)\s*(?:>\s*(.*?)\s*)?$/.exec(l.name || ''); return { name: m[1], parent: m[2] || null }; };
+    const tagOf = l => { const m = /\s*#([^\s#]+)\s*$/.exec(l.name || ''); return m ? { name: (l.name.slice(0, m.index).trim() || l.name), tag: m[1] } : null; };
+    const key = s => String(s).trim().toLowerCase();
+    let mode = opts.rig || 'auto';
+    if (opts.nulls === false) mode = 'none';
+    if (mode === 'auto') mode = all.some(l => !l.folderEnd && (isPivot(l) || tagOf(l))) ? 'tags' : 'folders';
+    const NULL_HALF = 100, nulls = new Map(), order = [], place = [];
+    const getNull = (k, name) => { if (!nulls.has(k)) nulls.set(k, { id: `null_${now + 500 + nulls.size}`, name, parentKey: null, center: null, bounds: null, depth: 0 }); return nulls.get(k); };
+    const grow = (nl, l) => { const b = nl.bounds; nl.bounds = b ? [Math.min(b[0], l.left), Math.min(b[1], l.top), Math.max(b[2], l.right), Math.max(b[3], l.bottom)] : [l.left, l.top, l.right, l.bottom]; };
+    for (const l of all) {
       if (l.folderEnd) {
-        const f = l.folderEnd, b = bounds.get(f);
-        if (!useNulls || !b) continue;                       // folder with no exported layers: no null
-        const id = nullIdOf(f);
-        layers.push({ id, name: f.name || 'Folder', type: 'NULL', isLocked: false, inPointMs: 0, outPointMs: opts.durationMs || 5000,
-                      content: { kind: 'NULL' }, ...(f._parentFolder ? { parentId: nullIdOf(f._parentFolder) } : {}) });
-        // a null is a 200x200 box placed by its top-left corner: centre it on the folder's contents
-        const cx = Math.round((b[0] + b[2]) / 2), cy = Math.round((b[1] + b[3]) / 2);
-        nullCenter.set(f, [cx, cy]);
-        place.push({ id, x: cx - NULL_HALF, y: cy - NULL_HALF, folder: f._parentFolder });
-        maps.scale[id] = '100'; maps.rotate[id] = '0'; maps.anchorX[id] = '0.5'; maps.anchorY[id] = '0.5';
-        maps.opacity[id] = '1.0'; maps.visibility[id] = 'true';
-        notes.push(`folder "${f.name}" → null (parent of its layers)`);
+        if (mode === 'folders') { const f = l.folderEnd; if (nulls.has(f)) { nulls.get(f).parentKey = f._parentFolder && nulls.has(f._parentFolder) ? f._parentFolder : (f._parentFolder || null); order.push({ nullKey: f }); } }
+        continue;
+      }
+      if (isPivot(l) && mode !== 'tags') {                    // pivot dots are rig markers, never artwork
+        if (mode === 'folders' && l._folder && !l.empty)      // a dot inside a folder sets that folder's handle position
+          getNull(l._folder, l._folder.name || 'Folder').center = [Math.round((l.left + l.right) / 2), Math.round((l.top + l.bottom) / 2)];
+        continue;
+      }
+      if (mode === 'tags' && isPivot(l)) {                    // pivot dot: defines a null, not exported
+        const sp = pivotSpec(l);
+        if (!sp.name) { notes.push(`${l.name}: pivot layer needs a name, e.g. "@arm"`); continue; }
+        if (l.empty) { notes.push(`${l.name}: pivot dot is empty, can't tell where the joint is`); continue; }
+        const nl = getNull(key(sp.name), sp.name);
+        nl.center = [Math.round((l.left + l.right) / 2), Math.round((l.top + l.bottom) / 2)];
+        if (sp.parent) nl.parentKey = key(sp.parent);
         continue;
       }
       if (l.empty) { notes.push(`${l.name}: empty`); continue; }
       if (!l.canvas) { notes.push(`${l.name}: no pixel data, skipped`); continue; }
       if (l.clipping) notes.push(`${l.name}: clipping mask not supported in Keyflow export yet, imported unclipped`);
       if (l.clipBaked) notes.push(`${l.name}: clipping applied to the image (Keyflow has no clipping masks)`);
+      let parentKey = null, name = l.name;
+      if (mode === 'tags') { const t = tagOf(l); if (t) { name = t.name; parentKey = key(t.tag); grow(getNull(parentKey, t.tag), l); } }
+      else if (mode === 'folders' && l._folder) {
+        parentKey = l._folder;
+        for (let f = l._folder; f; f = f._parentFolder) grow(getNull(f, f.name || 'Folder'), l);
+      }
+      l.displayName = name;
       n++;
       const id = `img_${now + n}`, file = `img_${now + 100 + n}.png`;
       const w = l.right - l.left, h = l.bottom - l.top;
-      layers.push({ id, name: l.name || `Layer ${n}`, type: 'IMAGE', isLocked: false, inPointMs: 0, outPointMs: opts.durationMs || 5000,
-                    content: { kind: 'IMAGE', assetPath: `keyflow:/asset/${file}`, width: w, height: h },
-                    ...(useNulls && l._folder ? { parentId: nullIdOf(l._folder) } : {}) });
-      for (let f = l._folder; f; f = f._parentFolder) {     // grow every enclosing folder's bounds
-        const b = bounds.get(f);
-        bounds.set(f, b ? [Math.min(b[0], l.left), Math.min(b[1], l.top), Math.max(b[2], l.right), Math.max(b[3], l.bottom)] : [l.left, l.top, l.right, l.bottom]);
-      }
-      place.push({ id, x: l.left, y: l.top, folder: useNulls ? l._folder : null });
+      order.push({ layer: { id, name: name || `Layer ${n}`, type: 'IMAGE', isLocked: false, inPointMs: 0, outPointMs: opts.durationMs || 5000,
+                            content: { kind: 'IMAGE', assetPath: `keyflow:/asset/${file}`, width: w, height: h } }, parentKey });
+      place.push({ id, x: l.left, y: l.top, parentKey });
       maps.scale[id] = '100'; maps.rotate[id] = '0'; maps.anchorX[id] = '0.5'; maps.anchorY[id] = '0.5';
       maps.opacity[id] = String(l.opacity !== undefined ? +l.opacity.toFixed(4) : 1.0).replace(/^1$/, '1.0');
       maps.visibility[id] = l.hidden ? 'false' : 'true';
@@ -159,12 +177,33 @@
       assets[file] = `/data/user/0/com.angkin.keyflow/files/${file}`;
       media.push({ file, layer: l });
     }
+    // finish the nulls: centre (pivot dot, else middle of what's attached), valid parent, no loops
+    for (const [k, nl] of nulls) {
+      if (!nl.center && nl.bounds) nl.center = [Math.round((nl.bounds[0] + nl.bounds[2]) / 2), Math.round((nl.bounds[1] + nl.bounds[3]) / 2)];
+      if (nl.parentKey !== null && !nulls.has(nl.parentKey)) { if (mode === 'tags') notes.push(`@${nl.name}: parent "${nl.parentKey}" not found, left unattached`); nl.parentKey = null; }
+    }
+    for (const [k, nl] of nulls) {                             // break loops like @a > b, @b > a
+      const seen = new Set([k]); let p = nl.parentKey, d = 0;
+      while (p !== null) { if (seen.has(p)) { notes.push(`@${nl.name}: parent loop, left unattached`); nl.parentKey = null; d = 0; break; } seen.add(p); d++; p = nulls.get(p).parentKey; }
+      nl.depth = d;
+    }
+    for (const [k, nl] of nulls) if (!nl.center) { nl.center = [Math.round(W / 2), Math.round(H / 2)]; }
+    if (mode === 'tags') [...nulls.keys()].sort((a, b) => nulls.get(b).depth - nulls.get(a).depth).forEach(k => order.push({ nullKey: k }));  // nulls on top
+    for (const o of order) {
+      if (o.nullKey === undefined) { layers.push({ ...o.layer, ...(o.parentKey !== null && nulls.has(o.parentKey) ? { parentId: nulls.get(o.parentKey).id } : {}) }); continue; }
+      const nl = nulls.get(o.nullKey), id = nl.id;
+      layers.push({ id, name: nl.name || 'Null', type: 'NULL', isLocked: false, inPointMs: 0, outPointMs: opts.durationMs || 5000,
+                    content: { kind: 'NULL' }, ...(nl.parentKey !== null ? { parentId: nulls.get(nl.parentKey).id } : {}) });
+      place.push({ id, x: nl.center[0] - NULL_HALF, y: nl.center[1] - NULL_HALF, parentKey: nl.parentKey });
+      maps.scale[id] = '100'; maps.rotate[id] = '0'; maps.anchorX[id] = '0.5'; maps.anchorY[id] = '0.5';
+      maps.opacity[id] = '1.0'; maps.visibility[id] = 'true';
+    }
     for (const p of place) {
-      let ref = [W / 2, H / 2];
-      for (let f = p.folder; f; f = f._parentFolder) if (nullCenter.has(f)) { ref = nullCenter.get(f); break; }
+      const ref = p.parentKey !== null && nulls.has(p.parentKey) ? nulls.get(p.parentKey).center : [W / 2, H / 2];
       maps.transformX[p.id] = String(Math.round(p.x - ref[0]));
       maps.transformY[p.id] = String(Math.round(p.y - ref[1]));
     }
+    if (nulls.size) notes.push(mode === 'tags' ? `rig from @pivot / #tag names: ${nulls.size} null(s)` : `rig from folders: ${nulls.size} null(s)`);
     layers.reverse();                          // PSD is bottom-first, Keyflow is top-first
     // Like Keyflow's own PSD import: wrap everything in one group named after the file, at 0,0
     if (layers.length && opts.group !== false) {
@@ -183,7 +222,7 @@
     const manifest = { format: 1, exportedAt: now, app: '1.5.10', build: 39, includesMedia: true, device: 'psd-to-am-xml',
       project: { name: opts.title || 'PSD Import', fps: opts.fps || 30, ratio: opts.ratio || '3:4', resolution: opts.resolution || '1080p', createdAt: now },
       assets };
-    return { project, manifest, media, notes, count: media.length, nulls: nullIds.size };
+    return { project, manifest, media, notes, count: media.length, nulls: nulls.size, rig: mode };
   }
 
   if (typeof module !== 'undefined') module.exports = { convert, convertKeyflow, applyFolders };
