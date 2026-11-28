@@ -118,6 +118,7 @@
     // as in Keyflow's own projects; each null starts at the centre of its folder's contents.
     const useNulls = opts.nulls !== false;
     const nullIds = new Map(), bounds = new Map();
+    const NULL_HALF = 100, nullCenter = new Map(), place = [];
     const nullIdOf = f => { if (!nullIds.has(f)) nullIds.set(f, `null_${now + 500 + nullIds.size}`); return nullIds.get(f); };
     for (const l of flattenAll(psd.children, [])) {
       if (l.folderEnd) {
@@ -126,8 +127,10 @@
         const id = nullIdOf(f);
         layers.push({ id, name: f.name || 'Folder', type: 'NULL', isLocked: false, inPointMs: 0, outPointMs: opts.durationMs || 5000,
                       content: { kind: 'NULL' }, ...(f._parentFolder ? { parentId: nullIdOf(f._parentFolder) } : {}) });
-        maps.transformX[id] = String(Math.round((b[0] + b[2]) / 2 - W / 2));
-        maps.transformY[id] = String(Math.round((b[1] + b[3]) / 2 - H / 2));
+        // a null is a 200x200 box placed by its top-left corner: centre it on the folder's contents
+        const cx = Math.round((b[0] + b[2]) / 2), cy = Math.round((b[1] + b[3]) / 2);
+        nullCenter.set(f, [cx, cy]);
+        place.push({ id, x: cx - NULL_HALF, y: cy - NULL_HALF, folder: f._parentFolder });
         maps.scale[id] = '100'; maps.rotate[id] = '0'; maps.anchorX[id] = '0.5'; maps.anchorY[id] = '0.5';
         maps.opacity[id] = '1.0'; maps.visibility[id] = 'true';
         notes.push(`folder "${f.name}" → null (parent of its layers)`);
@@ -147,8 +150,7 @@
         const b = bounds.get(f);
         bounds.set(f, b ? [Math.min(b[0], l.left), Math.min(b[1], l.top), Math.max(b[2], l.right), Math.max(b[3], l.bottom)] : [l.left, l.top, l.right, l.bottom]);
       }
-      maps.transformX[id] = String(Math.round(l.left - W / 2));
-      maps.transformY[id] = String(Math.round(l.top - H / 2));
+      place.push({ id, x: l.left, y: l.top, folder: useNulls ? l._folder : null });
       maps.scale[id] = '100'; maps.rotate[id] = '0'; maps.anchorX[id] = '0.5'; maps.anchorY[id] = '0.5';
       maps.opacity[id] = String(l.opacity !== undefined ? +l.opacity.toFixed(4) : 1.0).replace(/^1$/, '1.0');
       maps.visibility[id] = l.hidden ? 'false' : 'true';
@@ -156,6 +158,12 @@
       if (bm !== 'normal' && bm !== 'pass through') maps.blendMode[id] = titleCase(bm);
       assets[file] = `/data/user/0/com.angkin.keyflow/files/${file}`;
       media.push({ file, layer: l });
+    }
+    for (const p of place) {
+      let ref = [W / 2, H / 2];
+      for (let f = p.folder; f; f = f._parentFolder) if (nullCenter.has(f)) { ref = nullCenter.get(f); break; }
+      maps.transformX[p.id] = String(Math.round(p.x - ref[0]));
+      maps.transformY[p.id] = String(Math.round(p.y - ref[1]));
     }
     layers.reverse();                          // PSD is bottom-first, Keyflow is top-first
     // Like Keyflow's own PSD import: wrap everything in one group named after the file, at 0,0
